@@ -7,73 +7,41 @@ from model import DataStore, BikeType, LocationType, Role, BikeStatus
 
 class BikerApp(tk.Tk):
     """
-    Eenvoudige Tkinter GUI met inloggen per rol.
-    - Inlogscherm (rol + gebruikersnaam/wachtwoord)
-    - Huurder: eigen reserveringen + formulier 'Nieuwe reservering' + Uitloggen
-    - Beheerder: Notebook met tab 'Bestellingen' en tab 'Fietsen'
-    - Monteur: overzicht reparaties + knop 'Fiets gerepareerd' + Uitloggen
+    Eenvoudige Tkinter GUI met login per rol.
+    - Login-scherm (rol + gebruikersnaam + wachtwoord)
+    - Huurder: eigen reserveringen + nieuwe reservering + 'Mijn gegevens' + uitloggen
+    - Beheerder: tabbladen Bestellingen en Fietsen + uitloggen
+    - Monteur: overzicht reparaties + fiets herstellen + uitloggen
     """
 
     def __init__(self):
         super().__init__()
 
-        self.title("BIKER – eenvoudige desktopapplicatie")
+        self.title("BIKER Light")
         self.geometry("900x550")
 
         self.store = DataStore()
-        self.store.load_from_csv(".")   # data laden uit CSV (indien aanwezig)
+        self.store.load_from_csv(".")   # data laden uit CSV
 
-        # demo-data aanmaken als er nog niets is
-        self.ensure_demo_data()
 
         self.current_account = None
         self.current_role: Role | None = None
 
-        # inlogscherm
+        # login-scherm
         self.login_frame = ttk.Frame(self)
         self.build_login_frame()
         self.login_frame.pack(fill="both", expand=True)
 
-        # hoofd-UI (wordt aangemaakt na inloggen)
+        # hoofd-UI (na inloggen)
         self.main_frame = None
         self.notebook = None
 
-        # bij sluiten van de applicatie: data opslaan
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    # ---------- DEMO-DATA ----------
 
-    def ensure_demo_data(self):
-        """Zorgt dat er minimaal een paar klanten, fietsen en accounts zijn."""
-        # klanten
-        if not self.store.customers:
-            c1 = self.store.add_customer("Dima")
-            c2 = self.store.add_customer("Anna")
-        else:
-            c1 = list(self.store.customers.values())[0]
-
-        # fietsen – als er nog geen zijn, maak 10 standaard fietsen
-        if not self.store.bikes:
-            # 5 stadsfietsen
-            for _ in range(5):
-                self.store.add_bike(BikeType.STADSFIETS, BikeStatus.OK)
-            # 5 e-bikes
-            for _ in range(5):
-                self.store.add_bike(BikeType.E_BIKE, BikeStatus.OK)
-
-        # accounts
-        if not self.store.accounts:
-            # Huurder gekoppeld aan klant c1
-            self.store.add_account("huur1", "test", Role.HUURDER, customer_id=c1.customer_id)
-            # Beheerder
-            self.store.add_account("admin1", "admin", Role.BEHEERDER)
-            # Monteur
-            self.store.add_account("monteur1", "monteur", Role.MONTEUR)
-
-    # ---------- INLOG-UI ----------
+    # ---------- login-UI ----------
 
     def build_login_frame(self):
-        """Maakt het inlogscherm."""
         frame = self.login_frame
 
         title = ttk.Label(frame, text="Inloggen bij BIKER", font=("Arial", 14, "bold"))
@@ -107,18 +75,18 @@ class BikerApp(tk.Tk):
 
         hint = ttk.Label(
             frame,
-            text=(
-                "Demo-accounts:\n"
-                "Huurder:  huur1 / test\n"
-                "Beheerder: admin1 / admin\n"
-                "Monteur:  monteur1 / monteur"
-            ),
+            text="Demo-accounts:\n"
+                 
+                 "Klant Dima:  dima / test\n"
+                 "Klant Anna:  anna / test\n"
+                 "Klant Darian:  darian / test\n"
+                 "Beheerder: admin / admin\n"
+                 "Monteur:  monteur / monteur",
             foreground="gray",
         )
         hint.pack(pady=5)
 
     def handle_login(self):
-        """Verwerkt de inlogpoging van de gebruiker."""
         role_text = self.role_var.get()
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
@@ -130,29 +98,25 @@ class BikerApp(tk.Tk):
         role = Role(role_text)
         acc = self.store.authenticate(username, password, role)
         if acc is None:
-            messagebox.showerror(
-                "Inloggen mislukt",
-                "Onjuiste combinatie van rol / gebruikersnaam / wachtwoord."
-            )
+            messagebox.showerror("Inloggen mislukt", "Onjuiste combinatie van rol / gebruikersnaam / wachtwoord.")
+            return
+
+        if role == Role.HUURDER and acc.customer_id is None:
+            messagebox.showerror("Fout", "Deze huurder heeft geen gekoppelde klant.")
             return
 
         self.current_account = acc
         self.current_role = role
 
-        # verberg het inlogscherm
         self.login_frame.pack_forget()
-
-        # bouw de hoofd-UI op basis van de rol
         self.build_main_ui()
 
-    # ---------- HOOFD-UI NA INLOGGEN ----------
+    # ---------- hoofd-UI ----------
 
     def build_main_ui(self):
-        """Maakt het hoofdscherm na succesvol inloggen."""
         self.main_frame = ttk.Frame(self)
         self.main_frame.pack(fill="both", expand=True)
 
-        # bovenste balk met info + Uitloggen-knop
         top = ttk.Frame(self.main_frame)
         top.pack(fill="x", padx=10, pady=5)
 
@@ -164,7 +128,6 @@ class BikerApp(tk.Tk):
 
         ttk.Button(top, text="Uitloggen", command=self.logout).pack(side="right")
 
-        # toon scherm afhankelijk van rol
         if self.current_role == Role.HUURDER:
             self.build_huurder_screen()
         elif self.current_role == Role.BEHEERDER:
@@ -173,31 +136,29 @@ class BikerApp(tk.Tk):
             self.build_monteur_screen()
 
     def clear_main_content(self):
-        """Verwijdert het huidige hoofdscherm (bijv. bij uitloggen)."""
         if self.main_frame is not None:
             self.main_frame.destroy()
             self.main_frame = None
             self.notebook = None
 
     def logout(self):
-        """Logt de gebruiker uit en keert terug naar het inlogscherm."""
+        """Terug naar het login-scherm."""
         self.current_account = None
         self.current_role = None
         self.clear_main_content()
         self.login_frame.pack(fill="both", expand=True)
 
-    # ========== SCHERM HUURDER ==========
+    # ========== Huurder-scherm ==========
 
     def build_huurder_screen(self):
-        """Bouwt het scherm voor de rol Huurder."""
         frame = ttk.Frame(self.main_frame)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # extra knop bovenaan om een reservering aan te maken
-        ttk.Button(frame, text="Nieuwe reservering", command=self.create_reservation)\
+        # knop 'Mijn gegevens'
+        ttk.Button(frame, text="Mijn gegevens", command=self.open_mijn_gegevens)\
             .pack(anchor="w", pady=(0, 5))
 
-        # klantselectie (voor Huurder eigenlijk vast, via account.customer_id)
+        # klantselectie (voor huurder vast gekoppeld aan account)
         klant_frame = ttk.Frame(frame)
         klant_frame.pack(fill="x", pady=5)
 
@@ -208,7 +169,6 @@ class BikerApp(tk.Tk):
         self.customer_combo.pack(side="left", padx=5)
 
         if self.current_role == Role.HUURDER and self.current_account.customer_id is not None:
-            # stel de juiste klant in en maak de combobox niet wijzigbaar
             cust_id = self.current_account.customer_id
             for i, c in enumerate(self.store.customers.values()):
                 if c.customer_id == cust_id:
@@ -219,7 +179,7 @@ class BikerApp(tk.Tk):
         ttk.Button(klant_frame, text="Toon mijn reserveringen", command=self.show_customer_reservations)\
             .pack(side="left", padx=5)
 
-        # overzicht van reserveringen
+        # tabel met reserveringen
         res_frame = ttk.LabelFrame(frame, text="Mijn reserveringen")
         res_frame.pack(fill="both", expand=True, pady=5)
 
@@ -240,7 +200,7 @@ class BikerApp(tk.Tk):
         self.res_tree.configure(yscroll=scroll.set)
         scroll.pack(side="right", fill="y")
 
-        # formulier voor nieuwe reservering
+        # formulier nieuwe reservering
         form = ttk.LabelFrame(frame, text="Nieuwe reservering")
         form.pack(fill="x", pady=5)
 
@@ -278,7 +238,7 @@ class BikerApp(tk.Tk):
         ttk.Button(form, text="Nieuwe reservering", command=self.create_reservation)\
             .grid(row=3, column=0, columnspan=4, pady=5)
 
-        # formulier voor defectmelding
+        # defect melden
         defect = ttk.LabelFrame(frame, text="Defect melden")
         defect.pack(fill="x", pady=5)
 
@@ -297,17 +257,15 @@ class BikerApp(tk.Tk):
         ttk.Button(defect, text="Melding versturen", command=self.send_defect)\
             .grid(row=3, column=0, columnspan=4, pady=5)
 
-    # --- helpers Huurder / algemeen ---
+    # --- helpers huurder / algemeen ---
 
     def refresh_customer_combo(self):
-        """Vult de klant-combobox (voor Huurder-scherm)."""
         values = [f"{c.customer_id} – {c.name}" for c in self.store.customers.values()]
         self.customer_combo["values"] = values
         if values and not self.customer_var.get():
             self.customer_combo.current(0)
 
     def get_selected_customer_id(self):
-        """Geeft het geselecteerde klantnummer terug, of dat van de ingelogde huurder."""
         if self.current_role == Role.HUURDER and self.current_account.customer_id is not None:
             return self.current_account.customer_id
 
@@ -315,13 +273,11 @@ class BikerApp(tk.Tk):
         if not value:
             return None
         try:
-            id_part = value.split("–")[0].strip()
-            return int(id_part)
+            return int(value.split("–")[0].strip())
         except Exception:
             return None
 
     def show_customer_reservations(self):
-        """Toont alle reserveringen van de geselecteerde klant in de tabel."""
         customer_id = self.get_selected_customer_id()
         if customer_id is None:
             messagebox.showwarning("Geen klant", "Selecteer eerst een klant.")
@@ -346,7 +302,6 @@ class BikerApp(tk.Tk):
             )
 
     def create_reservation(self):
-        """Maakt een nieuwe reservering aan (vanuit Huurder-scherm)."""
         customer_id = self.get_selected_customer_id()
         if customer_id is None:
             messagebox.showwarning("Geen klant", "Selecteer eerst een klant.")
@@ -393,7 +348,6 @@ class BikerApp(tk.Tk):
         self.show_customer_reservations()
 
     def send_defect(self):
-        """Maakt een reparatiemelding op basis van een reserveringsnummer."""
         res_id_text = self.def_res_entry.get().strip()
         if not res_id_text.isdigit():
             messagebox.showerror("Fout", "Voer een geldig reserveringsnummer in.")
@@ -408,11 +362,7 @@ class BikerApp(tk.Tk):
             return
 
         try:
-            repair = self.store.report_defect(
-                reservation_id=res_id,
-                defect_type=defect_type,
-                description=description
-            )
+            repair = self.store.report_defect(reservation_id=res_id, defect_type=defect_type, description=description)
         except ValueError as e:
             messagebox.showerror("Fout", str(e))
             return
@@ -425,10 +375,56 @@ class BikerApp(tk.Tk):
         self.def_type_entry.delete(0, "end")
         self.def_desc_entry.delete(0, "end")
 
-    # ========== SCHERM BEHEERDER ==========
+    def open_mijn_gegevens(self):
+        """Open een apart venster waarin de huurder zijn gegevens kan bijwerken."""
+        customer_id = self.get_selected_customer_id()
+        if customer_id is None or customer_id not in self.store.customers:
+            messagebox.showwarning("Geen klant", "Geen gekoppelde klant gevonden.")
+            return
+        cust = self.store.customers[customer_id]
+
+        win = tk.Toplevel(self)
+        win.title("Mijn gegevens")
+        win.geometry("400x250")
+
+        ttk.Label(win, text="Naam:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        name_var = tk.StringVar(value=cust.name)
+        name_entry = ttk.Entry(win, textvariable=name_var, width=30)
+        name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="E-mail:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        email_var = tk.StringVar(value=cust.email)
+        email_entry = ttk.Entry(win, textvariable=email_var, width=30)
+        email_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="IBAN (optioneel):").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        iban_var = tk.StringVar(value=cust.iban)
+        iban_entry = ttk.Entry(win, textvariable=iban_var, width=30)
+        iban_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="Afleveradres (optioneel):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        addr_var = tk.StringVar(value=cust.delivery_address)
+        addr_entry = ttk.Entry(win, textvariable=addr_var, width=30)
+        addr_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        def opslaan():
+            cust.name = name_var.get().strip()
+            cust.email = email_var.get().strip()
+            cust.iban = iban_var.get().strip()
+            cust.delivery_address = addr_var.get().strip()
+            self.refresh_customer_combo()
+
+            # meteen naar csv schrijven (dezelfde map)
+            self.store.save_to_csv(".")
+
+            messagebox.showinfo("Opgeslagen", "Je gegevens zijn bijgewerkt.")
+            win.destroy()
+
+        ttk.Button(win, text="Opslaan", command=opslaan).grid(row=4, column=0, columnspan=2, pady=10)
+
+    # ========== Beheerder-scherm ==========
 
     def build_beheerder_screen(self):
-        """Bouwt het scherm voor de rol Beheerder met een Notebook."""
         self.notebook = ttk.Notebook(self.main_frame)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -436,16 +432,10 @@ class BikerApp(tk.Tk):
         self.build_beheerder_fietsen_tab()
 
     def build_beheerder_bestellingen_tab(self):
-        """Tab 'Bestellingen' met alle reserveringen en formulier 'Nieuwe reservering'."""
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Bestellingen")
 
-        top = ttk.Frame(tab)
-        top.pack(fill="x", pady=5)
-        ttk.Button(top, text="Nieuwe reservering", command=self.create_reservation_beheerder)\
-            .pack(side="left", padx=5)
-
-        # overzicht van alle reserveringen
+        # tabel met alle reserveringen
         frame = ttk.LabelFrame(tab, text="Alle reserveringen")
         frame.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -464,18 +454,71 @@ class BikerApp(tk.Tk):
         self.admin_tree.configure(yscroll=scroll.set)
         scroll.pack(side="right", fill="y")
 
-        # formulier nieuwe reservering (met klantkeuze en 'Nieuwe klant'-knop)
+        # frame voor de knoppen
+        button_frame = ttk.Frame(tab)
+        button_frame.pack(fill='x', pady=5)
+
+        # knop om geselecteerde reservering te bewerken
+        ttk.Button(button_frame, text="Bewerk geselecteerde reservering",
+                   command=self.edit_selected_reservation).pack(side="left", padx=5)
+
+        # knop om geselecteerde reservering te annuleren
+        ttk.Button(button_frame, text="Verwijder geselecteerde reservering",
+                   command=self.delete_selected_reservation).pack(side="left", padx=5)
+
+        # formulier voor nieuwe reservering
         form = ttk.LabelFrame(tab, text="Nieuwe reservering")
         form.pack(fill="x", padx=5, pady=5)
 
         ttk.Label(form, text="Klant:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
         self.admin_customer_var = tk.StringVar()
-        self.admin_customer_combo = ttk.Combobox(
+        self.admin_customer_combo = ttk.Combobox(form, textvariable=self.admin_customer_var, state="readonly", width=25)
+        self.refresh_admin_customer_combo()
+        self.admin_customer_combo.grid(row=0, column=1, padx=5, pady=2)
+
+        ttk.Button(form, text="Nieuwe klant", command=self.new_customer_beheerder) \
+            .grid(row=0, column=2, padx=5, pady=2)
+
+        ttk.Label(form, text="Type fiets:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        self.admin_bike_type_var = tk.StringVar()
+        self.admin_bike_type_combo = ttk.Combobox(
             form,
-            textvariable=self.admin_customer_var,
+            textvariable=self.admin_bike_type_var,
+            values=[b.value for b in BikeType],
             state="readonly",
-            width=25
+            width=15,
         )
+        self.admin_bike_type_combo.grid(row=1, column=1, padx=5, pady=2)
+        self.admin_bike_type_combo.current(0)
+
+        ttk.Label(form, text="Start (YYYY-MM-DD HH:MM):").grid(row=2, column=0, padx=5, pady=2, sticky="w")
+        self.admin_start_entry = ttk.Entry(form, width=20)
+        self.admin_start_entry.grid(row=2, column=1, padx=5, pady=2)
+
+        ttk.Label(form, text="Einde (YYYY-MM-DD HH:MM):").grid(row=3, column=0, padx=5, pady=2, sticky="w")
+        self.admin_end_entry = ttk.Entry(form, width=20)
+        self.admin_end_entry.grid(row=3, column=1, padx=5, pady=2)
+
+        ttk.Label(form, text="Locatie:").grid(row=1, column=2, padx=5, pady=2, sticky="w")
+        self.admin_location_var = tk.StringVar(value=LocationType.OPHALEN.value)
+        ttk.Radiobutton(form, text="Ophalen", variable=self.admin_location_var,
+                        value=LocationType.OPHALEN.value).grid(row=1, column=3, sticky="w")
+        ttk.Radiobutton(form, text="Bezorgen", variable=self.admin_location_var,
+                        value=LocationType.BEZORGEN.value).grid(row=2, column=3, sticky="w")
+
+        ttk.Label(form, text="Afleveradres (bij bezorgen):").grid(row=3, column=2, padx=5, pady=2, sticky="w")
+        self.admin_address_entry = ttk.Entry(form, width=30)
+        self.admin_address_entry.grid(row=3, column=3, padx=5, pady=2)
+
+        ttk.Button(form, text="Nieuwe reservering", command=self.create_reservation_beheerder) \
+            .grid(row=4, column=0, columnspan=4, pady=5)
+
+        self.refresh_admin_reservations()
+
+
+        ttk.Label(form, text="Klant:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.admin_customer_var = tk.StringVar()
+        self.admin_customer_combo = ttk.Combobox(form, textvariable=self.admin_customer_var, state="readonly", width=25)
         self.refresh_admin_customer_combo()
         self.admin_customer_combo.grid(row=0, column=1, padx=5, pady=2)
 
@@ -519,7 +562,6 @@ class BikerApp(tk.Tk):
         self.refresh_admin_reservations()
 
     def refresh_admin_reservations(self):
-        """Vult de tabel met alle reserveringen (voor Beheerder)."""
         reservations = self.store.get_all_reservations()
         for row in self.admin_tree.get_children():
             self.admin_tree.delete(row)
@@ -540,24 +582,38 @@ class BikerApp(tk.Tk):
             )
 
     def refresh_admin_customer_combo(self):
-        """Vult de klant-combobox in het Beheerder-scherm."""
         values = [f"{c.customer_id} – {c.name}" for c in self.store.customers.values()]
         self.admin_customer_combo["values"] = values
         if values and not self.admin_customer_var.get():
             self.admin_customer_combo.current(0)
 
     def new_customer_beheerder(self):
-        """Laat de beheerder een nieuwe klant aanmaken (via dialoog)."""
-        name = simpledialog.askstring("Nieuwe klant", "Naam van de klant:")
+        """Nieuwe huurder registreren met wachtwoord (account wordt aangemaakt)."""
+        name = simpledialog.askstring("Nieuwe klant", "Naam van de huurder:")
         if not name:
             return
-        self.store.add_customer(name)
+
+        username = simpledialog.askstring("Nieuwe account", "Gebruikersnaam voor deze huurder:")
+        if not username:
+            messagebox.showwarning("Geen gebruikersnaam", "Gebruikersnaam is verplicht.")
+            return
+        if username in self.store.accounts:
+            messagebox.showerror("Bestaat al", "Deze gebruikersnaam bestaat al.")
+            return
+
+        password = simpledialog.askstring("Nieuwe account", "Wachtwoord voor deze huurder:", show="*")
+        if not password:
+            messagebox.showwarning("Geen wachtwoord", "Wachtwoord is verplicht.")
+            return
+
+        customer = self.store.add_customer(name)
+        self.store.add_account(username=username, password=password, role=Role.HUURDER, customer_id=customer.customer_id)
+
         self.refresh_admin_customer_combo()
-        # ook handig voor Huurder-combobox als je later wisselt van rol
-        # (hier wordt alleen de Beheerder-combobox opnieuw gevuld)
+        self.refresh_customer_combo()
+        messagebox.showinfo("Klant aangemaakt", f"Klant '{name}' met account '{username}' is toegevoegd.")
 
     def get_admin_selected_customer_id(self):
-        """Geeft het klantnummer terug dat in de Beheerder-klant-combobox gekozen is."""
         value = self.admin_customer_var.get()
         if not value:
             return None
@@ -567,7 +623,6 @@ class BikerApp(tk.Tk):
             return None
 
     def create_reservation_beheerder(self):
-        """Maakt een nieuwe reservering aan via het Beheerder-scherm."""
         customer_id = self.get_admin_selected_customer_id()
         if customer_id is None:
             messagebox.showwarning("Geen klant", "Kies of maak eerst een klant.")
@@ -613,10 +668,97 @@ class BikerApp(tk.Tk):
         )
         self.refresh_admin_reservations()
 
-    # --- Tab 'Fietsen' ---
+    def edit_selected_reservation(self):
+        """Open een venster om de geselecteerde reservering te bewerken (datum/locatie/adres)."""
+        selected = self.admin_tree.selection()
+        if not selected:
+            messagebox.showwarning("Geen selectie", "Selecteer eerst een reservering.")
+            return
+        values = self.admin_tree.item(selected[0], "values")
+        res_id = int(values[0])
+
+        if res_id not in self.store.reservations:
+            messagebox.showerror("Fout", "Onbekende reservering.")
+            return
+
+        r = self.store.reservations[res_id]
+
+        win = tk.Toplevel(self)
+        win.title(f"Reservering #{res_id} bewerken")
+        win.geometry("420x220")
+
+        ttk.Label(win, text="Start (YYYY-MM-DD HH:MM):").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        start_var = tk.StringVar(value=r.start.strftime("%Y-%m-%d %H:%M"))
+        start_entry = ttk.Entry(win, textvariable=start_var, width=22)
+        start_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="Einde (YYYY-MM-DD HH:MM):").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        end_var = tk.StringVar(value=r.end.strftime("%Y-%m-%d %H:%M"))
+        end_entry = ttk.Entry(win, textvariable=end_var, width=22)
+        end_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="Locatie:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        loc_var = tk.StringVar(value=r.location_type.value)
+        ttk.Radiobutton(win, text="Ophalen", variable=loc_var,
+                        value=LocationType.OPHALEN.value).grid(row=2, column=1, sticky="w")
+        ttk.Radiobutton(win, text="Bezorgen", variable=loc_var,
+                        value=LocationType.BEZORGEN.value).grid(row=3, column=1, sticky="w")
+
+        ttk.Label(win, text="Afleveradres:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        addr_var = tk.StringVar(value=r.address)
+        addr_entry = ttk.Entry(win, textvariable=addr_var, width=30)
+        addr_entry.grid(row=4, column=1, padx=5, pady=5)
+
+        def opslaan():
+            try:
+                new_start = datetime.strptime(start_var.get().strip(), "%Y-%m-%d %H:%M")
+                new_end = datetime.strptime(end_var.get().strip(), "%Y-%m-%d %H:%M")
+            except ValueError:
+                messagebox.showerror("Fout", "Gebruik formaat: YYYY-MM-DD HH:MM.")
+                return
+
+            new_loc = LocationType(loc_var.get())
+            new_addr = addr_var.get().strip()
+
+            r.start = new_start
+            r.end = new_end
+            r.location_type = new_loc
+            r.address = new_addr
+
+            # prijs opnieuw berekenen
+            r.total_price = self.store._calculate_price(r.bike_type, r.start, r.end)
+
+            self.refresh_admin_reservations()
+            messagebox.showinfo("Opgeslagen", "Reservering is bijgewerkt.")
+            win.destroy()
+
+        ttk.Button(win, text="Opslaan", command=opslaan).grid(row=5, column=0, columnspan=2, pady=10)
+
+    def delete_selected_reservation(self):
+        """Verwijder de geselecteerde reservering (voor beheerder)"""
+        selected = self.admin_tree.selection()
+        if not selected:
+            messagebox.showwarning("Geen selectie", "Selecteer eerst een reservering.")
+            return
+        values = self.admin_tree.item(selected[0], "values")
+        res_id = int(values[0])
+
+        bevestigen = messagebox.askyesno(
+            "Bevestigen",
+            f"Weet je zeker dat je reservering #{res_id} wilt verwijderen?"
+        )
+
+        if not bevestigen:
+            return
+
+        try:
+            self.store.delete_reservation(res_id)
+        except ValueError as e:
+            messagebox.showinfo("Verwijdererd", f"Reservering #{res_id} is verwijderd.")
+
+    # --- Fietsen-tab ---
 
     def build_beheerder_fietsen_tab(self):
-        """Tab 'Fietsen' met status van alle fietsen."""
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Fietsen")
 
@@ -642,16 +784,12 @@ class BikerApp(tk.Tk):
         btn_frame.pack(fill="x", padx=5, pady=5)
 
         ttk.Button(btn_frame, text="Ververs", command=self.refresh_bikes).pack(side="left")
-        ttk.Button(
-            btn_frame,
-            text="Markeer geselecteerde fiets als OK",
-            command=self.mark_bike_ok_from_bikes_tab
-        ).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Markeer geselecteerde fiets als OK", command=self.mark_bike_ok_from_bikes_tab)\
+            .pack(side="left", padx=5)
 
         self.refresh_bikes()
 
     def refresh_bikes(self):
-        """Vult de tabel met alle fietsen en hun status."""
         for row in self.bikes_tree.get_children():
             self.bikes_tree.delete(row)
         for b in self.store.bikes.values():
@@ -667,7 +805,6 @@ class BikerApp(tk.Tk):
             )
 
     def mark_bike_ok_from_bikes_tab(self):
-        """Zet de geselecteerde fiets in de tab 'Fietsen' op status OK en beschikbaar."""
         selected = self.bikes_tree.selection()
         if not selected:
             messagebox.showwarning("Geen selectie", "Selecteer eerst een fiets.")
@@ -682,10 +819,9 @@ class BikerApp(tk.Tk):
         bike.available = True
         self.refresh_bikes()
 
-    # ========== SCHERM MONTEUR ==========
+    # ========== Monteur-scherm ==========
 
     def build_monteur_screen(self):
-        """Bouwt het scherm voor de rol Monteur met reparatie-overzicht."""
         frame = ttk.Frame(self.main_frame)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -711,16 +847,12 @@ class BikerApp(tk.Tk):
         btn_frame.pack(fill="x", pady=5)
 
         ttk.Button(btn_frame, text="Ververs", command=self.refresh_repairs_tree).pack(side="left")
-        ttk.Button(
-            btn_frame,
-            text="Fiets gerepareerd (OK maken)",
-            command=self.fix_bike_from_selected_repair
-        ).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Fiets gerepareerd (OK maken)", command=self.fix_bike_from_selected_repair)\
+            .pack(side="left", padx=5)
 
         self.refresh_repairs_tree()
 
     def refresh_repairs_tree(self):
-        """Vult de tabel met alle reparaties."""
         for row in self.rep_tree.get_children():
             self.rep_tree.delete(row)
         for rep in self.store.get_all_repairs():
@@ -736,7 +868,6 @@ class BikerApp(tk.Tk):
             )
 
     def fix_bike_from_selected_repair(self):
-        """Markeert de fiets van de geselecteerde reparatie als OK en beschikbaar."""
         selected = self.rep_tree.selection()
         if not selected:
             messagebox.showwarning("Geen selectie", "Selecteer eerst een reparatie.")
@@ -751,10 +882,9 @@ class BikerApp(tk.Tk):
         messagebox.showinfo("Succes", "Fiets is gemarkeerd als OK en beschikbaar.")
         self.refresh_repairs_tree()
 
-    # ---------- AFSLUITEN ----------
+    # ---------- sluiten ----------
 
     def on_close(self):
-        """Wordt aangeroepen bij afsluiten van het hoofdvenster: slaat data op en sluit."""
         try:
             self.store.save_to_csv(".")
         except Exception as e:

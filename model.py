@@ -34,6 +34,11 @@ class BikeStatus(Enum):
 class Customer:
     customer_id: int
     name: str
+    email: str =""
+    iban: str = ""
+    delivery_address: str = ""
+
+
 
 
 @dataclass
@@ -69,21 +74,21 @@ class Repair:
 @dataclass
 class UserAccount:
     username: str
-    password: str   # для учебного проекта – без шифрования
+    password: str
     role: Role
-    customer_id: int | None = None    # только для Huurder
+    customer_id: int | None = None    # alleen voor Huurder
 
 
-# ===== ПРОСТОЙ BACKEND С CSV =====
+# ===== BACKEND met CSV =====
 
 class DataStore:
     """
-    Очень простой in-memory backend.
-    Хранит клиентов, велосипеды, резервации, ремонты и аккаунты.
-    Может сохранять и загружать данные в/из CSV-файлов.
+    in-memory backend.
+    Behouden klaanten, fietsen, reservaties, reparaties en accounts.
+    import/ export CSV
     """
 
-    # простые цены за день
+    # prijces
     BASE_PRICE_PER_DAY = {
         BikeType.STADSFIETS: 15.0,
         BikeType.E_BIKE: 25.0,
@@ -103,15 +108,28 @@ class DataStore:
         self.next_reservation_id = 1
         self.next_repair_id = 1
 
-    # --- работа с клиентами ---
+    # --- klanten ---
 
-    def add_customer(self, name: str) -> Customer:
-        customer = Customer(customer_id=self.next_customer_id, name=name)
+    def add_customer(
+            self,
+            name: str,
+            email: str = "",
+            iban: str = "",
+            delivery_address: str = "",
+    ) -> Customer:
+        """voeg een nieuwe klant toe"""
+        customer = Customer(
+            customer_id=self.next_customer_id,
+            name=name,
+            email = email,
+            iban = iban,
+            delivery_address = delivery_address
+        )
         self.customers[self.next_customer_id] = customer
         self.next_customer_id += 1
         return customer
 
-    # --- работа с велосипедами ---
+    # --- fietsen ---
 
     def add_bike(self, bike_type: BikeType, status: BikeStatus = BikeStatus.OK) -> Bike:
         bike = Bike(
@@ -125,7 +143,7 @@ class DataStore:
         return bike
 
     def get_available_bike(self, bike_type: BikeType):
-        """Вернуть первый велосипед нужного типа, который OK и доступен."""
+        """Returns available bike status for given bike_type."""
         for bike in self.bikes.values():
             if (
                 bike.bike_type == bike_type
@@ -135,10 +153,10 @@ class DataStore:
                 return bike
         return None
 
-    # --- работа с резервациями ---
+    # --- reservaties ---
 
     def _calculate_price(self, bike_type: BikeType, start: datetime, end: datetime) -> float:
-        """Простейший расчёт цены: цена_за_день * количество_дней (минимум 1)."""
+        """Prijs berekening."""
         base_price = self.BASE_PRICE_PER_DAY[bike_type]
         delta = end - start
         days = delta.days
@@ -191,7 +209,21 @@ class DataStore:
     def get_all_reservations(self):
         return list(self.reservations.values())
 
-    # --- работа с ремонтами ---
+    def delete_reservation(self, reservation_id: int):
+        """Verwijdert een reservering en maak gekoppelde fiets weer beschikbaar"""
+        if reservation_id not in self.reservations:
+            raise ValueError("Onbekende reservering.")
+
+        res = self.reservations.pop(reservation_id)
+
+        # gekoppelde fiets weer vrijgeven (indien bekend)
+        if res.bike_id in self.bikes:
+            bike = self.bikes[res.bike_id]
+    #         alleen vrijgeven als de fiets niet defect is
+            if bike.status == BikeStatus.OK:
+                bike.available = True
+
+    # --- reparaties ---
 
     def report_defect(self, reservation_id: int, defect_type: str, description: str) -> Repair:
         if reservation_id not in self.reservations:
@@ -208,7 +240,7 @@ class DataStore:
             description=description,
         )
 
-        # помечаем велик как дефектный и недоступный
+        # fiets markeren als deffect of onbereikbaar
         bike.status = BikeStatus.DEFECT
         bike.available = False
 
@@ -231,7 +263,7 @@ class DataStore:
         bike.status = BikeStatus.OK
         bike.available = True
 
-    # --- аккаунты / логин ---
+    # --- accounts / login ---
 
     def add_account(
         self,
@@ -254,7 +286,7 @@ class DataStore:
             return None
         return acc
 
-    # ====== CSV: СОХРАНЕНИЕ И ЗАГРУЗКА ======
+    # ====== CSV: opslaan en import ======
 
     def save_to_csv(self, folder: str = "."):
         os.makedirs(folder, exist_ok=True)
@@ -287,9 +319,9 @@ class DataStore:
     def _save_customers_csv(self, filename: str):
         with open(filename, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["customer_id", "name"])
+            writer.writerow(["customer_id", "name", "email", "iban", "delivery_address"])
             for c in self.customers.values():
-                writer.writerow([c.customer_id, c.name])
+                writer.writerow([c.customer_id, c.name, c.email, c.iban, c.delivery_address])
 
     def _load_customers_csv(self, filename: str):
         if not os.path.exists(filename):
@@ -300,7 +332,18 @@ class DataStore:
             for row in reader:
                 cid = int(row["customer_id"])
                 name = row["name"]
-                self.customers[cid] = Customer(customer_id=cid, name=name)
+                email = row.get("name", "")
+                iban = row.get("iban", "")
+                delivery_address = row.get("delivery_address", "")
+
+                self.customers[cid] = Customer(
+                    customer_id=cid,
+                    name=name,
+                    email = email,
+                    iban = iban,
+                    delivery_address = delivery_address,
+                )
+
                 if cid > max_id:
                     max_id = cid
         self.next_customer_id = max_id + 1
