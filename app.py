@@ -18,7 +18,7 @@ class BikerApp(tk.Tk):
         super().__init__()
 
         self.title("BIKER Light")
-        self.geometry("900x550")
+        self.geometry("900x650")
 
         self.store = DataStore()
         self.store.load_from_csv(".")   # data laden uit CSV
@@ -122,8 +122,8 @@ class BikerApp(tk.Tk):
 
         ttk.Label(
             top,
-            text=f"Ingelogd als: {self.current_role.value} ({self.current_account.username})",
-            font=("Arial", 10, "bold")
+            text=f"Ingelogd als: {self.current_account.username} ({self.current_role.value})",
+            font=("Arial", 12, "bold")
         ).pack(side="left")
 
         ttk.Button(top, text="Uitloggen", command=self.logout).pack(side="right")
@@ -152,31 +152,21 @@ class BikerApp(tk.Tk):
 
     def build_huurder_screen(self):
         frame = ttk.Frame(self.main_frame)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # knop 'Mijn gegevens'
-        ttk.Button(frame, text="Mijn gegevens", command=self.open_mijn_gegevens)\
-            .pack(anchor="w", pady=(0, 5))
 
         # klantselectie (voor huurder vast gekoppeld aan account)
-        klant_frame = ttk.Frame(frame)
-        klant_frame.pack(fill="x", pady=5)
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill="x", pady=0)
 
-        ttk.Label(klant_frame, text="Klant:").pack(side="left")
+        # knop 'Mijn gegevens'
+        ttk.Button(button_frame, text="Mijn gegevens", command=self.open_mijn_gegevens) \
+            .pack(side="left")
+
         self.customer_var = tk.StringVar()
-        self.customer_combo = ttk.Combobox(klant_frame, textvariable=self.customer_var, state="readonly")
-        self.refresh_customer_combo()
-        self.customer_combo.pack(side="left", padx=5)
 
-        if self.current_role == Role.HUURDER and self.current_account.customer_id is not None:
-            cust_id = self.current_account.customer_id
-            for i, c in enumerate(self.store.customers.values()):
-                if c.customer_id == cust_id:
-                    self.customer_combo.current(i)
-                    break
-            self.customer_combo.configure(state="disabled")
 
-        ttk.Button(klant_frame, text="Toon mijn reserveringen", command=self.show_customer_reservations)\
+        ttk.Button(button_frame, text="Ververs", command=self.show_customer_reservations)\
             .pack(side="left", padx=5)
 
         # tabel met reserveringen
@@ -197,7 +187,7 @@ class BikerApp(tk.Tk):
         self.res_tree.pack(side="left", fill="both", expand=True)
 
         scroll = ttk.Scrollbar(res_frame, orient="vertical", command=self.res_tree.yview)
-        self.res_tree.configure(yscroll=scroll.set)
+        self.res_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
 
         # formulier nieuwe reservering
@@ -256,6 +246,8 @@ class BikerApp(tk.Tk):
 
         ttk.Button(defect, text="Melding versturen", command=self.send_defect)\
             .grid(row=3, column=0, columnspan=4, pady=5)
+
+        self.after(100, self.show_customer_reservations)
 
     # --- helpers huurder / algemeen ---
 
@@ -433,7 +425,7 @@ class BikerApp(tk.Tk):
 
     def build_beheerder_bestellingen_tab(self):
         tab = ttk.Frame(self.notebook)
-        self.notebook.add(tab, text="Bestellingen")
+        self.notebook.add(tab, text="Reserveringen")
 
         # tabel met alle reserveringen
         frame = ttk.LabelFrame(tab, text="Alle reserveringen")
@@ -451,7 +443,7 @@ class BikerApp(tk.Tk):
         self.admin_tree.pack(side="left", fill="both", expand=True)
 
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.admin_tree.yview)
-        self.admin_tree.configure(yscroll=scroll.set)
+        self.admin_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
 
         # frame voor de knoppen
@@ -754,7 +746,12 @@ class BikerApp(tk.Tk):
         try:
             self.store.delete_reservation(res_id)
         except ValueError as e:
-            messagebox.showinfo("Verwijdererd", f"Reservering #{res_id} is verwijderd.")
+            messagebox.showerror("Fout", str(e))
+            return
+
+        self.refresh_admin_reservations()
+
+        messagebox.showinfo("Verwijdererd", f"Reservering #{res_id} is verwijderd.")
 
     # --- Fietsen-tab ---
 
@@ -777,7 +774,7 @@ class BikerApp(tk.Tk):
         self.bikes_tree.pack(side="left", fill="both", expand=True)
 
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.bikes_tree.yview)
-        self.bikes_tree.configure(yscroll=scroll.set)
+        self.bikes_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
 
         btn_frame = ttk.Frame(tab)
@@ -840,7 +837,7 @@ class BikerApp(tk.Tk):
         self.rep_tree.pack(side="left", fill="both", expand=True)
 
         scroll = ttk.Scrollbar(rep_frame, orient="vertical", command=self.rep_tree.yview)
-        self.rep_tree.configure(yscroll=scroll.set)
+        self.rep_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
 
         btn_frame = ttk.Frame(frame)

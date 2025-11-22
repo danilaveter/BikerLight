@@ -1,5 +1,4 @@
 reservation_id,customer_id,bike_id,bike_type,start,end,location_type,address,total_price
 1,3,6,E_BIKE,2025-12-12 12:12,2025-12-14 12:12,BEZORGEN,laan van Decima 231,50.0
-2,1,4,STADSFIETS,2025-12-12 12:12,2025-12-14 14:14,OPHALEN,,40.0
 3,1,1,STADSFIETS,2025-11-10 12:00,2025-12-10 14:00,OPHALEN,,450.0
 4,2,2,STADSFIETS,2025-11-24 12:00,2025-12-30 13:00,OPHALEN,,540.0

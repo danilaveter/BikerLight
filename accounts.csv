@@ -1,7 +1,6 @@
 username,password,role,customer_id
-huur1,test,HUURDER,1
 admin,admin,BEHEERDER,
-monteur1,monteur,MONTEUR,
+monteur,monteur,MONTEUR,
 dima,test,HUURDER,1
 anna,test,HUURDER,2
 darian,test,HUURDER,3
