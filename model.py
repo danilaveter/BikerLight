@@ -27,6 +27,11 @@ class BikeStatus(Enum):
     OK = "OK"
     DEFECT = "Defect"
 
+class ReservationStatus(Enum):
+    GEPLAND = "Gepland"
+    LOPEND = "Lopend"
+    AFGEROND = "Afgerond"
+    GEANNULEERD = "Geannuleerd"
 
 # ===== DATAKLASSEN =====
 
@@ -59,6 +64,7 @@ class Reservation:
     end: datetime
     location_type: LocationType
     address: str = ""
+    status: ReservationStatus = ReservationStatus.GEPLAND
     total_price: float = 0.0
 
 
@@ -191,6 +197,7 @@ class DataStore:
             end=end,
             location_type=location_type,
             address=address if location_type == LocationType.BEZORGEN else "",
+            status=ReservationStatus.GEPLAND,
             total_price=price,
         )
 
@@ -199,11 +206,24 @@ class DataStore:
         self.next_reservation_id += 1
         return reservation
 
-    def get_reservations_for_customer(self, customer_id: int):
+    def get_reservations_for_customer(self, customer_id: int, only_current_and_future: bool = True):
+        """
+        Geeft reserveringen voor deze klant.
+        Standaard alleen actuele en toekomstige reserveringen (US3).
+        """
+        now = datetime.now()
         result = []
         for r in self.reservations.values():
-            if r.customer_id == customer_id:
-                result.append(r)
+            if r.customer_id != customer_id:
+                continue
+            # alleen actuele en toekomstige reserveringen:
+            # - toekomstige: r.end > nu
+            # - lopend: r.start <= nu <= r.end
+            if only_current_and_future:
+                if r.end < now:
+                    continue
+            result.append(r)
+
         return result
 
     def get_all_reservations(self):
@@ -399,6 +419,7 @@ class DataStore:
                 "end",
                 "location_type",
                 "address",
+                "status",
                 "total_price",
             ])
             for r in self.reservations.values():
@@ -411,6 +432,7 @@ class DataStore:
                     r.end.strftime(self.DATETIME_FORMAT),
                     r.location_type.name,
                     r.address,
+                    r.status.name,
                     r.total_price,
                 ])
 
@@ -420,6 +442,9 @@ class DataStore:
         max_id = 0
         with open(filename, "r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            has_status = "status" in fieldnames
+
             for row in reader:
                 rid = int(row["reservation_id"])
                 customer_id = int(row["customer_id"])
@@ -429,7 +454,15 @@ class DataStore:
                 end = datetime.strptime(row["end"], self.DATETIME_FORMAT)
                 location_type = LocationType[row["location_type"]]
                 address = row["address"]
+
                 total_price = float(row["total_price"])
+
+                # Voor oude CSV-bestanden zonder 'status'-kolom:
+                if has_status:
+                    status_name = row.get("status") or "GEPLAND"
+                    status = ReservationStatus[status_name]
+                else:
+                    status = ReservationStatus.GEPLAND
 
                 self.reservations[rid] = Reservation(
                     reservation_id=rid,
@@ -440,8 +473,10 @@ class DataStore:
                     end=end,
                     location_type=location_type,
                     address=address,
+                    status=status,
                     total_price=total_price,
                 )
+
                 if rid > max_id:
                     max_id = rid
         self.next_reservation_id = max_id + 1
